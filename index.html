@@ -81,6 +81,14 @@
     .submit { width: 100%; margin-top: 10px; }
     .note { color: #73776e; font-size: 13px; line-height: 1.5; }
     .total { font-size: 20px; font-weight: bold; }
+    .about, .legal, .socials {
+      background: white; border-radius: 16px; padding: 16px; margin: 22px 0;
+    }
+    .about p, .legal p { line-height: 1.55; }
+    .consent { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0; font-size: 14px; line-height: 1.45; }
+    .consent input { width: auto; margin: 3px 0 0; flex: 0 0 auto; }
+    a { color: var(--green); }
+    footer { padding: 0 16px 30px; color: #73776e; font-size: 13px; line-height: 1.6; }
   </style>
 </head>
 <body>
@@ -90,12 +98,11 @@
   </header>
 
   <main>
-    <section class="banner">
-      <strong>Комплексный обед — 399 ₽</strong>
-      <p>Суп + основное блюдо + салат + хлеб.</p>
-      <div class="note">
-        Доставка по согласованной зоне и маршруту.
-      </div>
+    <section class="about">
+      <h2>О нас</h2>
+      <p>«Кук» — домашняя еда с доставкой в Сочи. В меню есть завтраки, горячие блюда, супы, салаты и десерты.</p>
+      <p>Мы стремимся готовить из свежих продуктов и предлагать понятные блюда на каждый день. Состав и вес каждого блюда уточняйте в описании или перед заказом.</p>
+      <p class="note">Доставка доступна по согласованным районам и маршрутам. Возможность и время доставки подтвердим после получения заказа.</p>
     </section>
 
     <h2>Наше меню</h2>
@@ -127,6 +134,10 @@
         <input id="time" name="time" required maxlength="100"
           placeholder="Например, 13:00">
 
+        <label class="consent">
+          <input type="checkbox" id="personal-data-consent" required>
+          <span>Я даю согласие на обработку персональных данных в целях оформления и доставки заказа и ознакомился(лась) с <a href="privacy.html" target="_blank" rel="noopener">Политикой обработки персональных данных</a> и <a href="consent.html" target="_blank" rel="noopener">текстом согласия</a>.</span>
+        </label>
         <button class="submit" type="submit">
           Оформить заказ
         </button>
@@ -136,6 +147,21 @@
       </p>
     </section>
   </main>
+
+  <footer>
+    <section class="legal">
+      <strong>Информация и документы</strong>
+      <p><a href="privacy.html">Политика обработки персональных данных</a><br>
+      <a href="consent.html">Согласие на обработку персональных данных</a><br>
+      <a href="offer.html">Публичная оферта</a></p>
+      <p class="note">Проект документов требует заполнения и проверки перед публикацией.</p>
+    </section>
+    <section class="socials">
+      <strong>Мы в соцсетях</strong>
+      <p>Ссылки на VK, Telegram и другие площадки добавим после получения точных адресов страниц.</p>
+    </section>
+    <p>ИП Ковалевский Матвей Николаевич · <a href="mailto:mkovalevskiyy@mail.ru">mkovalevskiyy@mail.ru</a> · +7 999 654-06-06</p>
+  </footer>
 
   <script>
     const tg = window.Telegram?.WebApp;

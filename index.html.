@@ -1,0 +1,243 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Кук — домашняя еда в Сочи</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --green: #456b50;
+      --cream: #f7f4ec;
+      --ink: #282d28;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--cream);
+      color: var(--ink);
+      font: 16px Arial, sans-serif;
+    }
+    header { padding: 24px 18px 12px; }
+    h1 { margin: 0; font-size: 32px; color: var(--green); }
+    .subtitle { margin-top: 7px; color: #686e65; }
+    main { padding: 12px 16px 110px; }
+    .banner {
+      padding: 18px;
+      border-radius: 18px;
+      background: #e5ebdc;
+      margin-bottom: 22px;
+    }
+    .banner strong { font-size: 22px; }
+    h2 { font-size: 21px; }
+    .menu {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .dish {
+      background: white;
+      padding: 13px;
+      border-radius: 16px;
+      box-shadow: 0 2px 10px #00000008;
+    }
+    .emoji { font-size: 35px; }
+    .dish h3 { font-size: 16px; margin: 9px 0 5px; }
+    .weight { color: #777; font-size: 13px; }
+    .price { font-weight: bold; margin: 10px 0; }
+    button {
+      border: 0;
+      border-radius: 11px;
+      background: var(--green);
+      color: white;
+      padding: 11px;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    .dish button { width: 100%; }
+    .cart {
+      background: white;
+      border-radius: 16px;
+      padding: 16px;
+      margin-top: 24px;
+    }
+    .cart-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 12px 0;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 13px;
+      margin: 6px 0 12px;
+      border: 1px solid #d8d8cf;
+      border-radius: 10px;
+      background: white;
+      font: inherit;
+    }
+    .submit { width: 100%; margin-top: 10px; }
+    .note { color: #73776e; font-size: 13px; line-height: 1.5; }
+    .total { font-size: 20px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Кук</h1>
+    <div class="subtitle">Домашняя еда с доставкой в Сочи</div>
+  </header>
+
+  <main>
+    <section class="banner">
+      <strong>Комплексный обед — 399 ₽</strong>
+      <p>Суп + основное блюдо + салат + хлеб.</p>
+      <div class="note">
+        Доставка по согласованной зоне и маршруту.
+      </div>
+    </section>
+
+    <h2>Наше меню</h2>
+    <div class="menu" id="menu"></div>
+
+    <section class="cart">
+      <h2>Корзина</h2>
+      <div id="cart">Пока ничего не выбрано</div>
+      <div class="total" id="total">Итого: 0 ₽</div>
+
+      <h2>Данные для заказа</h2>
+      <form id="order-form">
+        <label for="customer">Ваше имя</label>
+        <input id="customer" required placeholder="Как к вам обращаться">
+
+        <label for="phone">Телефон</label>
+        <input id="phone" type="tel" required
+          placeholder="+7 900 000-00-00">
+
+        <label for="address">Адрес доставки</label>
+        <textarea id="address" required
+          placeholder="Улица, дом, квартира"></textarea>
+
+        <label for="time">Желаемое время</label>
+        <input id="time" required placeholder="Например, 13:00">
+
+        <button class="submit" type="submit">
+          Подготовить заказ
+        </button>
+      </form>
+      <p class="note" id="status">
+        Это тестовая версия. Заказы пока не отправляются продавцу.
+      </p>
+    </section>
+  </main>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    tg?.ready();
+    tg?.expand();
+
+    const dishes = [
+      {id: 1, name: "Сырники со сметаной", weight: "220 г",
+       price: 199, emoji: "🥞"},
+      {id: 2, name: "Омлет с сыром и томатами", weight: "250 г",
+       price: 189, emoji: "🍳"},
+      {id: 3, name: "Овсяная каша с бананом", weight: "300 г",
+       price: 149, emoji: "🥣"},
+      {id: 4, name: "Рис с курицей и овощами", weight: "350 г",
+       price: 249, emoji: "🍚"},
+      {id: 5, name: "Гречка с куриной котлетой", weight: "350 г",
+       price: 259, emoji: "🍗"},
+      {id: 6, name: "Куриный плов", weight: "350 г",
+       price: 249, emoji: "🥘"},
+      {id: 7, name: "Суп-лапша с курицей", weight: "350 г",
+       price: 169, emoji: "🍲"},
+      {id: 8, name: "Борщ со сметаной", weight: "350 г",
+       price: 189, emoji: "🥣"},
+      {id: 9, name: "Салат из свежих овощей", weight: "150 г",
+       price: 129, emoji: "🥗"},
+      {id: 10, name: "Чизкейк", weight: "порция 100–120 г",
+       price: 199, emoji: "🍰"}
+    ];
+
+    const cart = {};
+    const money = n => n.toLocaleString("ru-RU") + " ₽";
+
+    document.getElementById("menu").innerHTML = dishes.map(d => `
+      <article class="dish">
+        <div class="emoji">${d.emoji}</div>
+        <h3>${d.name}</h3>
+        <div class="weight">${d.weight}</div>
+        <div class="price">${money(d.price)}</div>
+        <button type="button" data-id="${d.id}">Добавить +</button>
+      </article>
+    `).join("");
+
+    document.getElementById("menu").addEventListener("click", e => {
+      const id = Number(e.target.dataset.id);
+      if (!id) return;
+      cart[id] = (cart[id] || 0) + 1;
+      renderCart();
+    });
+
+    function renderCart() {
+      const items = dishes.filter(d => cart[d.id]);
+      const total = items.reduce(
+        (sum, d) => sum + d.price * cart[d.id], 0
+      );
+
+      document.getElementById("cart").innerHTML = items.length
+        ? items.map(d => `
+          <div class="cart-row">
+            <span>${d.name} × ${cart[d.id]}</span>
+            <span>${money(d.price * cart[d.id])}</span>
+          </div>
+          <button type="button" data-remove="${d.id}">
+            Убрать одну
+          </button>
+        `).join("")
+        : "Пока ничего не выбрано";
+
+      document.getElementById("total").textContent =
+        "Итого: " + money(total);
+    }
+
+    document.getElementById("cart").addEventListener("click", e => {
+      const id = Number(e.target.dataset.remove);
+      if (!id || !cart[id]) return;
+      cart[id]--;
+      if (cart[id] <= 0) delete cart[id];
+      renderCart();
+    });
+
+    document.getElementById("order-form").addEventListener(
+      "submit", e => {
+        e.preventDefault();
+
+        const items = dishes.filter(d => cart[d.id]);
+        if (!items.length) {
+          alert("Сначала добавьте блюда в корзину.");
+          return;
+        }
+
+        const order = {
+          customer: document.getElementById("customer").value,
+          phone: document.getElementById("phone").value,
+          address: document.getElementById("address").value,
+          time: document.getElementById("time").value,
+          items: items.map(d => ({
+            name: d.name,
+            quantity: cart[d.id],
+            price: d.price
+          }))
+        };
+
+        document.getElementById("status").textContent =
+          "Форма проверена. Это демонстрация: заказ ещё не отправлен. " +
+          "Следующим шагом подключим безопасную отправку на сервер.";
+        console.log("Тестовый заказ:", order);
+        tg?.HapticFeedback?.notificationOccurred("success");
+      }
+    );
+  </script>
+</body>
+</html>

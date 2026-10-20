@@ -333,7 +333,8 @@
         name: document.getElementById("customer").value.trim(),
         phone: document.getElementById("phone").value.trim(),
         address: document.getElementById("address").value.trim() +
-          (mapLat.value && mapLon.value ? "\\nМетка на карте: https://www.openstreetmap.org/?mlat=" + mapLat.value + "&mlon=" + mapLon.value + "#map=18/" + mapLat.value + "/" + mapLon.value : ""),
+          (document.getElementById("comment").value.trim() ? "\nКомментарий: " + document.getElementById("comment").value.trim() : "") +
+          (mapLat.value && mapLon.value ? "\nМетка на карте: https://www.openstreetmap.org/?mlat=" + mapLat.value + "&mlon=" + mapLon.value + "#map=18/" + mapLat.value + "/" + mapLon.value : ""),
         time: document.getElementById("time").value.trim(),
         comment: document.getElementById("comment").value.trim(),
         items: items.map(d => ({

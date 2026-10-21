@@ -326,33 +326,42 @@
 
     async function setMapPoint(lat, lon) {
       if (!pointInDeliveryZone(lat, lon)) {
-        mapPicked.textContent = "Этот адрес находится вне зелёной зоны доставки. Выберите точку внутри зелёной области.";
+        mapPicked.textContent = "Адрес вне зелёной зоны. Выбери точку внутри зелёной области.";
         return;
       }
+
+      // Сначала сохраняем координаты и показываем метку — геокодирование не должно мешать выбору точки.
       selectedAddressValid = true;
       mapLat.value = lat.toFixed(6);
       mapLon.value = lon.toFixed(6);
-      if (deliveryMarker) deliveryMarker.setLatLng([lat, lon]);
-      else deliveryMarker = L.marker([lat, lon]).addTo(deliveryMap);
-      mapPicked.textContent = "Точка в зоне доставки. Определяем улицу и дом…";
+      if (deliveryMarker) {
+        deliveryMarker.setLatLng([lat, lon]);
+      } else {
+        deliveryMarker = L.marker([lat, lon], { draggable: false, keyboard: true, title: "Адрес доставки" }).addTo(deliveryMap);
+      }
+      deliveryMarker.bindPopup("Адрес доставки").openPopup();
+      mapPicked.textContent = "Метка установлена. Заполняем адрес…";
+
       try {
-        const url = "https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&lat=" +
-          encodeURIComponent(lat) + "&lon=" + encodeURIComponent(lon);
+        // Photon reverse geocoder; if it cannot find a street/house, leave the inputs editable.
+        const url = "https://photon.komoot.io/reverse?lat=" + encodeURIComponent(lat) +
+          "&lon=" + encodeURIComponent(lon) + "&lang=ru";
         const response = await fetch(url, { headers: { "Accept": "application/json" } });
-        if (response.ok) {
-          const data = await response.json();
-          const a = data.address || {};
-          const street = a.road || a.pedestrian || a.residential || a.footway || a.path || "";
-          const house = a.house_number || "";
-          if (street) streetInput.value = street;
-          if (house) houseInput.value = house;
-          mapPicked.textContent = "Адрес выбран в зелёной зоне." +
-            (street ? " Улица заполнена автоматически." : " Улицу и номер дома, если они не заполнились, введите вручную.");
-        } else {
-          mapPicked.textContent = "Точка выбрана в зелёной зоне. Если адрес не заполнился автоматически, введите его вручную.";
-        }
+        if (!response.ok) throw new Error("Геокодер недоступен");
+        const data = await response.json();
+        const p = data.features && data.features[0] ? data.features[0].properties || {} : {};
+        const street = p.street || p.name || p.locality || "";
+        const house = p.housenumber || "";
+        if (street) streetInput.value = street;
+        if (house) houseInput.value = house;
+        const filled = [];
+        if (street) filled.push("улица");
+        if (house) filled.push("дом");
+        mapPicked.textContent = "Метка установлена внутри зелёной зоны." +
+          (filled.length ? " Автоматически заполнено: " + filled.join(" и ") + "." :
+          " Не удалось определить улицу и дом — заполни их вручную.");
       } catch (err) {
-        mapPicked.textContent = "Точка выбрана в зелёной зоне. Улицу и номер дома введите вручную, если они не заполнились.";
+        mapPicked.textContent = "Метка установлена внутри зелёной зоны. Не удалось определить адрес автоматически — заполни улицу и дом вручную.";
       }
     }
 

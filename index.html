@@ -142,10 +142,15 @@
           title="Введите полный российский номер: +7 (999) 123-45-67"
           placeholder="+7 (999) 123-45-67">
 
-        <label for="address">Адрес доставки</label>
-        <textarea id="address" name="address" required
-          maxlength="300" autocomplete="street-address"
-          placeholder="Улица, дом, квартира"></textarea>
+        <label for="address">Улица</label>
+        <input id="address" name="address" required maxlength="200"
+          autocomplete="address-line1" placeholder="Название улицы">
+        <label for="house-number">Номер дома</label>
+        <input id="house-number" name="house-number" required maxlength="20"
+          autocomplete="address-line2" placeholder="Например, 15 или 15к2">
+        <label for="apartment">Номер квартиры</label>
+        <input id="apartment" name="apartment" maxlength="20"
+          autocomplete="off" placeholder="Например, 24 (если есть)">
         <button class="map-button" type="button" id="toggle-map">📍 Указать дом на карте</button>
         <div id="map-wrap">
           <p class="map-help">Зелёная область — доступная зона доставки. Нажми на карту в месте своего дома: метка сохранится в заказе. Карта загружает данные OpenStreetMap и передаёт этому сервису технические данные подключения.</p>
@@ -276,65 +281,109 @@
         (digits.length === 11 ? "" : "Введите все 10 цифр российского номера после +7."));
     });
 
-    // Выбор точки на карте: координаты включаются в строку адреса,
-    // чтобы существующий Worker мог передать ссылку на метку без изменения API.
+    // Выбор адреса разрешён только внутри зелёного полигона доставки.
     let deliveryMap = null;
     let deliveryMarker = null;
+    let deliveryZone = null;
+    let selectedAddressValid = false;
     const mapWrap = document.getElementById("map-wrap");
     const toggleMap = document.getElementById("toggle-map");
     const mapLat = document.getElementById("map-lat");
     const mapLon = document.getElementById("map-lon");
     const mapPicked = document.getElementById("map-picked");
-    function setMapPoint(lat, lon) {
+    const streetInput = document.getElementById("address");
+    const houseInput = document.getElementById("house-number");
+    const apartmentInput = document.getElementById("apartment");
+
+    const deliveryCoords = [
+      [43.58340398464361, 39.76177677549838],
+      [43.591679473937646, 39.76064632122577],
+      [43.60993964739173, 39.748631237878804],
+      [43.62098218067504, 39.74933002914214],
+      [43.620768806055864, 39.74185344732809],
+      [43.62046676362, 39.73853034198862],
+      [43.6120677765246, 39.7311545704576],
+      [43.602221311888364, 39.72296907506407],
+      [43.58957363013777, 39.712177079027605],
+      [43.55937126070562, 39.74311419006511],
+      [43.570277856272426, 39.75916452880993],
+      [43.575478628626094, 39.7642595618291],
+      [43.580782516324156, 39.76395915441944],
+      [43.58340398464361, 39.76177677549838]
+    ];
+
+    function pointInDeliveryZone(lat, lon) {
+      let inside = false;
+      for (let i = 0, j = deliveryCoords.length - 1; i < deliveryCoords.length; j = i++) {
+        const [yi, xi] = deliveryCoords[i];
+        const [yj, xj] = deliveryCoords[j];
+        const intersects = ((yi > lat) !== (yj > lat)) &&
+          (lon < (xj - xi) * (lat - yi) / ((yj - yi) || 1e-12) + xi);
+        if (intersects) inside = !inside;
+      }
+      return inside;
+    }
+
+    async function setMapPoint(lat, lon) {
+      if (!pointInDeliveryZone(lat, lon)) {
+        mapPicked.textContent = "Этот адрес находится вне зелёной зоны доставки. Выберите точку внутри зелёной области.";
+        return;
+      }
+      selectedAddressValid = true;
       mapLat.value = lat.toFixed(6);
       mapLon.value = lon.toFixed(6);
       if (deliveryMarker) deliveryMarker.setLatLng([lat, lon]);
       else deliveryMarker = L.marker([lat, lon]).addTo(deliveryMap);
-      mapPicked.textContent = "Метка выбрана: " + lat.toFixed(6) + ", " + lon.toFixed(6);
+      mapPicked.textContent = "Точка в зоне доставки. Определяем улицу и дом…";
+      try {
+        const url = "https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&lat=" +
+          encodeURIComponent(lat) + "&lon=" + encodeURIComponent(lon);
+        const response = await fetch(url, { headers: { "Accept": "application/json" } });
+        if (response.ok) {
+          const data = await response.json();
+          const a = data.address || {};
+          const street = a.road || a.pedestrian || a.residential || a.footway || a.path || "";
+          const house = a.house_number || "";
+          if (street) streetInput.value = street;
+          if (house) houseInput.value = house;
+          mapPicked.textContent = "Адрес выбран в зелёной зоне." +
+            (street ? " Улица заполнена автоматически." : " Улицу и номер дома, если они не заполнились, введите вручную.");
+        } else {
+          mapPicked.textContent = "Точка выбрана в зелёной зоне. Если адрес не заполнился автоматически, введите его вручную.";
+        }
+      } catch (err) {
+        mapPicked.textContent = "Точка выбрана в зелёной зоне. Улицу и номер дома введите вручную, если они не заполнились.";
+      }
     }
+
     toggleMap.addEventListener("click", () => {
       const opening = mapWrap.style.display !== "block";
       mapWrap.style.display = opening ? "block" : "none";
       toggleMap.textContent = opening ? "Скрыть карту" : "📍 Указать дом на карте";
       if (opening && !deliveryMap) {
-        deliveryMap = L.map("map").setView([43.5840, 39.7440], 13);
+        deliveryMap = L.map("map").setView([43.590, 39.744], 13);
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
           maxZoom: 19,
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
         }).addTo(deliveryMap);
-        // Предварительный ориентировочный контур расширен на Верхнюю Лысую Гору,
-        // Соболеву, Ареду и Больничный городок. Это визуальная зона, а не
-        // автоматическая проверка доступности доставки по адресу.
-        L.polygon([
-          [43.58340398464361, 39.76177677549838],
-          [43.591679473937646, 39.76064632122577],
-          [43.60993964739173, 39.748631237878804],
-          [43.62098218067504, 39.74933002914214],
-          [43.620768806055864, 39.74185344732809],
-          [43.62046676362, 39.73853034198862],
-          [43.6120677765246, 39.7311545704576],
-          [43.602221311888364, 39.72296907506407],
-          [43.58957363013777, 39.712177079027605],
-          [43.55937126070562, 39.74311419006511],
-          [43.570277856272426, 39.75916452880993],
-          [43.575478628626094, 39.7642595618291],
-          [43.580782516324156, 39.76395915441944],
-          [43.58340398464361, 39.76177677549838]
-        ], {
+        deliveryZone = L.polygon(deliveryCoords, {
           color: "#315b45",
           weight: 3,
           fillColor: "#91a98e",
-          fillOpacity: 0.22
-        }).addTo(deliveryMap).bindPopup("Предварительная зона доставки «Кук»: ЖК «Меркато», Верхняя Лысая Гора, Соболева, Ареда и Больничный городок. Контур ориентировочный.");
+          fillOpacity: 0.3
+        }).addTo(deliveryMap).bindPopup("Зелёная область — доступная зона доставки.");
+        deliveryMap.fitBounds(deliveryZone.getBounds(), { padding: [12, 12] });
         deliveryMap.on("click", e => setMapPoint(e.latlng.lat, e.latlng.lng));
       }
       if (opening) setTimeout(() => deliveryMap.invalidateSize(), 100);
     });
+
     document.getElementById("clear-map").addEventListener("click", () => {
-      if (deliveryMarker) deliveryMap.removeLayer(deliveryMarker);
+      if (deliveryMarker && deliveryMap) deliveryMap.removeLayer(deliveryMarker);
       deliveryMarker = null;
       mapLat.value = "";
       mapLon.value = "";
+      selectedAddressValid = false;
       mapPicked.textContent = "Метка не выбрана.";
     });
 
@@ -349,8 +398,9 @@
 
       const form = e.currentTarget;
       if (!form.reportValidity()) return;
-      if (!mapLat.value || !mapLon.value) {
-        alert("Пожалуйста, укажите место доставки на карте.");
+      if (!mapLat.value || !mapLon.value || !selectedAddressValid ||
+          !pointInDeliveryZone(Number(mapLat.value), Number(mapLon.value))) {
+        alert("Выберите точку внутри зелёной зоны доставки.");
         document.getElementById("toggle-map").click();
         return;
       }

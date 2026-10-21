@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Кук — домашняя еда в Сочи</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <style>
     :root {
       --green: #456b50;
@@ -81,6 +83,19 @@
     .submit { width: 100%; margin-top: 10px; }
     .note { color: #73776e; font-size: 13px; line-height: 1.5; }
     .total { font-size: 20px; font-weight: bold; }
+    .about, .legal, .socials {
+      background: white; border-radius: 16px; padding: 16px; margin: 22px 0;
+    }
+    .about p, .legal p { line-height: 1.55; }
+    .consent { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0; font-size: 14px; line-height: 1.45; }
+    .consent input { width: auto; margin: 3px 0 0; flex: 0 0 auto; }
+    a { color: var(--green); }
+    footer { padding: 0 16px 30px; color: #73776e; font-size: 13px; line-height: 1.6; }
+    .map-button { width: 100%; margin: 0 0 10px; background: #647d68; }
+    #map-wrap { display: none; margin: 8px 0 14px; }
+    #map { height: 320px; border-radius: 12px; overflow: hidden; }
+    .map-help { font-size: 13px; line-height: 1.5; color: #73776e; margin: 4px 0 10px; }
+    .map-picked { font-size: 14px; margin: 8px 0; }
   </style>
 </head>
 <body>
@@ -90,12 +105,11 @@
   </header>
 
   <main>
-    <section class="banner">
-      <strong>Комплексный обед — 399 ₽</strong>
-      <p>Суп + основное блюдо + салат + хлеб.</p>
-      <div class="note">
-        Доставка по согласованной зоне и маршруту.
-      </div>
+    <section class="about">
+      <h2>О нас</h2>
+      <p>«Кук» — домашняя еда с доставкой в Сочи. В меню есть завтраки, горячие блюда, супы, салаты и десерты.</p>
+      <p>Мы стремимся готовить из свежих продуктов и предлагать понятные блюда на каждый день. Состав и вес каждого блюда уточняйте в описании или перед заказом.</p>
+      <p class="note">Доставка доступна по согласованным районам и маршрутам. Возможность и время доставки подтвердим после получения заказа.</p>
     </section>
 
     <h2>Наше меню</h2>
@@ -113,20 +127,40 @@
           maxlength="100" autocomplete="name"
           placeholder="Как к вам обращаться">
 
-        <label for="phone">Телефон</label>
+        <label for="phone">Телефон (Россия)</label>
         <input id="phone" name="phone" type="tel" required
-          maxlength="50" autocomplete="tel"
-          placeholder="+7 900 000-00-00">
+          maxlength="18" minlength="18" autocomplete="tel"
+          inputmode="tel" pattern="\+7 \([0-9]{3}\) [0-9]{3}-[0-9]{2}-[0-9]{2}"
+          title="Введите полный российский номер: +7 (999) 123-45-67"
+          placeholder="+7 (999) 123-45-67">
 
         <label for="address">Адрес доставки</label>
         <textarea id="address" name="address" required
           maxlength="300" autocomplete="street-address"
           placeholder="Улица, дом, квартира"></textarea>
+        <button class="map-button" type="button" id="toggle-map">📍 Указать дом на карте</button>
+        <div id="map-wrap">
+          <p class="map-help">Серая область — предварительный черновик зоны доставки по присланному ориентиру. Граница примерная и пока не используется для автоматического отказа или подтверждения заказа. Нажми на карту в месте своего дома: метка сохранится в заказе. Карта загружает данные OpenStreetMap и передаёт этому сервису технические данные подключения.</p>
+          <div id="map" role="application" aria-label="Карта для выбора адреса доставки"></div>
+          <p class="map-picked" id="map-picked">Метка не выбрана.</p>
+          <button type="button" id="clear-map">Убрать метку</button>
+        </div>
+        <input type="hidden" id="map-lat" name="map-lat">
+        <input type="hidden" id="map-lon" name="map-lon">
 
-        <label for="time">Желаемое время</label>
-        <input id="time" name="time" required maxlength="100"
-          placeholder="Например, 13:00">
+        <label for="time">Желаемое время доставки (24-часовой формат)</label>
+        <select id="time" name="time" required>
+          <option value="">Выберите время (24 часа)</option><option value="00:00">00:00</option><option value="00:30">00:30</option><option value="01:00">01:00</option><option value="01:30">01:30</option><option value="02:00">02:00</option><option value="02:30">02:30</option><option value="03:00">03:00</option><option value="03:30">03:30</option><option value="04:00">04:00</option><option value="04:30">04:30</option><option value="05:00">05:00</option><option value="05:30">05:30</option><option value="06:00">06:00</option><option value="06:30">06:30</option><option value="07:00">07:00</option><option value="07:30">07:30</option><option value="08:00">08:00</option><option value="08:30">08:30</option><option value="09:00">09:00</option><option value="09:30">09:30</option><option value="10:00">10:00</option><option value="10:30">10:30</option><option value="11:00">11:00</option><option value="11:30">11:30</option><option value="12:00">12:00</option><option value="12:30">12:30</option><option value="13:00">13:00</option><option value="13:30">13:30</option><option value="14:00">14:00</option><option value="14:30">14:30</option><option value="15:00">15:00</option><option value="15:30">15:30</option><option value="16:00">16:00</option><option value="16:30">16:30</option><option value="17:00">17:00</option><option value="17:30">17:30</option><option value="18:00">18:00</option><option value="18:30">18:30</option><option value="19:00">19:00</option><option value="19:30">19:30</option><option value="20:00">20:00</option><option value="20:30">20:30</option><option value="21:00">21:00</option><option value="21:30">21:30</option><option value="22:00">22:00</option><option value="22:30">22:30</option><option value="23:00">23:00</option><option value="23:30">23:30</option>
+        </select>
 
+        <label for="comment">Комментарий к заказу (необязательно)</label>
+        <textarea id="comment" name="comment" maxlength="500"
+          placeholder="Например, домофон, подъезд или пожелания"></textarea>
+
+        <label class="consent">
+          <input type="checkbox" id="personal-data-consent" required>
+          <span>Я согласен(на) на обработку данных, которые указал(а), для оформления и доставки моего заказа.</span>
+        </label>
         <button class="submit" type="submit">
           Оформить заказ
         </button>
@@ -136,6 +170,15 @@
       </p>
     </section>
   </main>
+
+  <footer>
+    <section class="socials">
+      <strong>Мы в соцсетях</strong>
+      <p><a href="https://t.me/kyksochi" target="_blank" rel="noopener">Telegram «Кук»</a></p>
+      <p>VK: ссылка будет добавлена после создания или подтверждения страницы.</p>
+    </section>
+    <p>ИП Ковалевский Матвей Николаевич · <a href="mailto:mkovalevskiyy@mail.ru">mkovalevskiyy@mail.ru</a> · +7 999 654-06-06</p>
+  </footer>
 
   <script>
     const tg = window.Telegram?.WebApp;
@@ -203,6 +246,94 @@
       renderCart();
     });
 
+    // Форматируем российский номер и не допускаем отправку неполного номера.
+    const phoneInput = document.getElementById("phone");
+    phoneInput.addEventListener("input", () => {
+      let digits = phoneInput.value.replace(/\D/g, "");
+      if (digits.startsWith("7") || digits.startsWith("8")) digits = digits.slice(1);
+      digits = digits.slice(0, 10);
+      let value = "+7";
+      if (digits.length) value += " (" + digits.slice(0, 3);
+      if (digits.length >= 3) value += ") " + digits.slice(3, 6);
+      if (digits.length >= 6) value += "-" + digits.slice(6, 8);
+      if (digits.length >= 8) value += "-" + digits.slice(8, 10);
+      phoneInput.value = value;
+      phoneInput.setCustomValidity(digits.length === 10 ? "" : "Введите все 10 цифр российского номера после +7.");
+    });
+    phoneInput.addEventListener("blur", () => {
+      const digits = phoneInput.value.replace(/\D/g, "");
+      phoneInput.setCustomValidity(digits.length === 11 && (digits.startsWith("7") || digits.startsWith("8")) ? "" :
+        (digits.length === 11 ? "" : "Введите все 10 цифр российского номера после +7."));
+    });
+
+    // Выбор точки на карте: координаты включаются в строку адреса,
+    // чтобы существующий Worker мог передать ссылку на метку без изменения API.
+    let deliveryMap = null;
+    let deliveryMarker = null;
+    const mapWrap = document.getElementById("map-wrap");
+    const toggleMap = document.getElementById("toggle-map");
+    const mapLat = document.getElementById("map-lat");
+    const mapLon = document.getElementById("map-lon");
+    const mapPicked = document.getElementById("map-picked");
+    function setMapPoint(lat, lon) {
+      mapLat.value = lat.toFixed(6);
+      mapLon.value = lon.toFixed(6);
+      if (deliveryMarker) deliveryMarker.setLatLng([lat, lon]);
+      else deliveryMarker = L.marker([lat, lon]).addTo(deliveryMap);
+      mapPicked.textContent = "Метка выбрана: " + lat.toFixed(6) + ", " + lon.toFixed(6);
+    }
+    toggleMap.addEventListener("click", () => {
+      const opening = mapWrap.style.display !== "block";
+      mapWrap.style.display = opening ? "block" : "none";
+      toggleMap.textContent = opening ? "Скрыть карту" : "📍 Указать дом на карте";
+      if (opening && !deliveryMap) {
+        deliveryMap = L.map("map").setView([43.5855, 39.7470], 12);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+        }).addTo(deliveryMap);
+        // Предварительный контур, вручную приближённый по скриншоту клиента.
+        // Координаты необходимо сверить на реальной карте перед использованием
+        // для проверки адресов; пока полигон служит только визуальным ориентиром.
+        L.polygon([
+          [43.6115, 39.7310],
+          [43.6085, 39.7390],
+          [43.6065, 39.7500],
+          [43.6035, 39.7610],
+          [43.5990, 39.7700],
+          [43.5930, 39.7660],
+          [43.5890, 39.7720],
+          [43.5830, 39.7770],
+          [43.5770, 39.7830],
+          [43.5680, 39.7790],
+          [43.5630, 39.7660],
+          [43.5630, 39.7500],
+          [43.5680, 39.7400],
+          [43.5740, 39.7300],
+          [43.5810, 39.7200],
+          [43.5890, 39.7130],
+          [43.5960, 39.7130],
+          [43.6000, 39.7190],
+          [43.6040, 39.7220],
+          [43.6080, 39.7250]
+        ], {
+          color: "#536b58",
+          weight: 3,
+          fillColor: "#9eaf9e",
+          fillOpacity: 0.25
+        }).addTo(deliveryMap).bindPopup("Черновая зона доставки «Кук» — границу нужно проверить");
+        deliveryMap.on("click", e => setMapPoint(e.latlng.lat, e.latlng.lng));
+      }
+      if (opening) setTimeout(() => deliveryMap.invalidateSize(), 100);
+    });
+    document.getElementById("clear-map").addEventListener("click", () => {
+      if (deliveryMarker) deliveryMap.removeLayer(deliveryMarker);
+      deliveryMarker = null;
+      mapLat.value = "";
+      mapLon.value = "";
+      mapPicked.textContent = "Метка не выбрана.";
+    });
+
     document.getElementById("order-form").addEventListener("submit", async e => {
       e.preventDefault();
 
@@ -214,12 +345,20 @@
 
       const form = e.currentTarget;
       if (!form.reportValidity()) return;
+      if (!mapLat.value || !mapLon.value) {
+        alert("Пожалуйста, укажите место доставки на карте.");
+        document.getElementById("toggle-map").click();
+        return;
+      }
 
       const order = {
         name: document.getElementById("customer").value.trim(),
         phone: document.getElementById("phone").value.trim(),
-        address: document.getElementById("address").value.trim(),
+        address: document.getElementById("address").value.trim() +
+          (document.getElementById("comment").value.trim() ? "\nКомментарий: " + document.getElementById("comment").value.trim() : "") +
+          (mapLat.value && mapLon.value ? "\nМетка на карте: https://www.openstreetmap.org/?mlat=" + mapLat.value + "&mlon=" + mapLon.value + "#map=18/" + mapLat.value + "/" + mapLon.value : ""),
         time: document.getElementById("time").value.trim(),
+        comment: document.getElementById("comment").value.trim(),
         items: items.map(d => ({
           name: d.name,
           quantity: cart[d.id],

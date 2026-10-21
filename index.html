@@ -408,7 +408,9 @@
       const order = {
         name: document.getElementById("customer").value.trim(),
         phone: document.getElementById("phone").value.trim(),
-        address: document.getElementById("address").value.trim() +
+        address: "Улица: " + streetInput.value.trim() +
+          ", дом: " + houseInput.value.trim() +
+          (apartmentInput.value.trim() ? ", квартира: " + apartmentInput.value.trim() : "") +
           (document.getElementById("comment").value.trim() ? "\nКомментарий: " + document.getElementById("comment").value.trim() : "") +
           (mapLat.value && mapLon.value ? "\nМетка на карте: https://www.openstreetmap.org/?mlat=" + mapLat.value + "&mlon=" + mapLon.value + "#map=18/" + mapLat.value + "/" + mapLon.value : ""),
         time: document.getElementById("time").value.trim(),

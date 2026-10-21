@@ -323,13 +323,58 @@
       return inside;
     }
 
+    async function reverseGeocodeAddress(lat, lon) {
+      // Сначала пробуем геокодер 2ГИС: точный адрес, затем ближайшее здание.
+      const apiKey = "bfbd528e-609a-4535-925b-649a20a838b3";
+      const base = "https://catalog.api.2gis.com/3.0/items/geocode";
+      const requests = [
+        base + "?lat=" + encodeURIComponent(lat) + "&lon=" + encodeURIComponent(lon) +
+          "&fields=items.address,items.adm_div&key=" + encodeURIComponent(apiKey) + "&locale=ru_RU",
+        base + "?lat=" + encodeURIComponent(lat) + "&lon=" + encodeURIComponent(lon) +
+          "&radius=50&type=building&fields=items.address,items.adm_div&key=" +
+          encodeURIComponent(apiKey) + "&locale=ru_RU"
+      ];
+
+      for (const url of requests) {
+        try {
+          const response = await fetch(url, { headers: { "Accept": "application/json" } });
+          if (!response.ok) continue;
+          const data = await response.json();
+          const items = data?.result?.items || [];
+          for (const item of items) {
+            const components = item.address?.components || [];
+            const streetPart = components.find(c => c.street);
+            const housePart = components.find(c => c.number && (c.type === "street_number" || c.type === "building"));
+            const street = streetPart?.street || "";
+            const house = housePart?.number || "";
+            if (street || house) return { street, house };
+            // Fallback: split the readable address when components aren't supplied.
+            const address = item.address_name || item.full_name || "";
+            const match = address.match(/^(.+?)[, ]+([0-9]+[\\p{L}А-Яа-яЁё0-9\\-/]*)$/u);
+            if (match) return { street: match[1].trim(), house: match[2].trim() };
+          }
+        } catch (err) {
+          console.warn("Геокодер 2ГИС не ответил:", err);
+        }
+      }
+
+      // Запасной бесплатный геокодер, если 2ГИС не вернул адрес.
+      const photonUrl = "https://photon.komoot.io/reverse?lat=" + encodeURIComponent(lat) +
+        "&lon=" + encodeURIComponent(lon) + "&lang=ru";
+      const response = await fetch(photonUrl, { headers: { "Accept": "application/json" } });
+      if (!response.ok) throw new Error("Геокодеры недоступны");
+      const data = await response.json();
+      const p = data?.features?.[0]?.properties || {};
+      return { street: p.street || p.name || p.locality || "", house: p.housenumber || "" };
+    }
+
     async function setMapPoint(lat, lon) {
       if (!pointInDeliveryZone(lat, lon)) {
         mapPicked.textContent = "Адрес вне зелёной зоны. Выбери точку внутри зелёной области.";
         return;
       }
 
-      // Сначала сохраняем координаты и показываем метку — геокодирование не должно мешать выбору точки.
+      // Сохраняем координаты сразу, чтобы выбор точки работал независимо от геокодера.
       selectedAddressValid = true;
       mapLat.value = lat.toFixed(6);
       mapLon.value = lon.toFixed(6);
@@ -339,28 +384,21 @@
         deliveryMarker = DG.marker([lat, lon], { title: "Адрес доставки" }).addTo(deliveryMap);
       }
       deliveryMarker.bindPopup("Адрес доставки").openPopup();
-      mapPicked.textContent = "Метка установлена. Заполняем адрес…";
+      mapPicked.textContent = "Метка установлена. Ищем адрес…";
 
       try {
-        // Photon reverse geocoder; if it cannot find a street/house, leave the inputs editable.
-        const url = "https://photon.komoot.io/reverse?lat=" + encodeURIComponent(lat) +
-          "&lon=" + encodeURIComponent(lon) + "&lang=ru";
-        const response = await fetch(url, { headers: { "Accept": "application/json" } });
-        if (!response.ok) throw new Error("Геокодер недоступен");
-        const data = await response.json();
-        const p = data.features && data.features[0] ? data.features[0].properties || {} : {};
-        const street = p.street || p.name || p.locality || "";
-        const house = p.housenumber || "";
-        if (street) streetInput.value = street;
-        if (house) houseInput.value = house;
+        const result = await reverseGeocodeAddress(lat, lon);
+        if (result.street) streetInput.value = result.street;
+        if (result.house) houseInput.value = result.house;
         const filled = [];
-        if (street) filled.push("улица");
-        if (house) filled.push("дом");
+        if (result.street) filled.push("улица");
+        if (result.house) filled.push("дом");
         mapPicked.textContent = "Метка установлена внутри зелёной зоны." +
           (filled.length ? " Автоматически заполнено: " + filled.join(" и ") + "." :
-          " Не удалось определить улицу и дом — заполни их вручную.");
+          " Сервис не нашёл точный адрес здания — введи улицу и номер дома вручную.");
       } catch (err) {
-        mapPicked.textContent = "Метка установлена внутри зелёной зоны. Не удалось определить адрес автоматически — заполни улицу и дом вручную.";
+        console.warn("Не удалось определить адрес:", err);
+        mapPicked.textContent = "Метка установлена внутри зелёной зоны, но адрес не найден автоматически. Введи улицу и номер дома вручную.";
       }
     }
 

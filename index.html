@@ -331,7 +331,10 @@
         base + "?lat=" + encodeURIComponent(lat) + "&lon=" + encodeURIComponent(lon) +
           "&fields=items.address,items.adm_div&key=" + encodeURIComponent(apiKey) + "&locale=ru_RU",
         base + "?lat=" + encodeURIComponent(lat) + "&lon=" + encodeURIComponent(lon) +
-          "&radius=50&type=building&fields=items.address,items.adm_div&key=" +
+          "&radius=50&fields=items.address,items.adm_div&key=" +
+          encodeURIComponent(apiKey) + "&locale=ru_RU",
+        base + "?lat=" + encodeURIComponent(lat) + "&lon=" + encodeURIComponent(lon) +
+          "&radius=10&type=building&fields=items.address,items.adm_div&key=" +
           encodeURIComponent(apiKey) + "&locale=ru_RU"
       ];
 
@@ -343,9 +346,11 @@
           const items = data?.result?.items || [];
           for (const item of items) {
             const components = item.address?.components || [];
+            // В ответе 2ГИС улица и номер дома часто находятся в одном компоненте.
             const streetPart = components.find(c => c.street);
-            const housePart = components.find(c => c.number && (c.type === "street_number" || c.type === "building"));
-            const street = streetPart?.street || "";
+            const housePart = components.find(c => c.number && c.type === "street_number")
+              || components.find(c => c.number);
+            const street = streetPart?.street || housePart?.street || "";
             const house = housePart?.number || "";
             if (street || house) return { street, house };
             // Fallback: split the readable address when components aren't supplied.
@@ -422,7 +427,20 @@
             fillOpacity: 0.3
           }).addTo(deliveryMap).bindPopup("Зелёная область — доступная зона доставки.");
           deliveryMap.fitBounds(deliveryZone.getBounds(), { padding: [12, 12] });
-          deliveryMap.on("click", e => setMapPoint(e.latlng.lat, e.latlng.lng));
+          const handleMapClick = e => {
+            const point = e?.latlng || e?.detail?.latlng || e?.originalEvent?.latlng;
+            const lat = Number(point?.lat);
+            const lon = Number(point?.lng ?? point?.lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+              mapPicked.textContent = "Не удалось прочитать координаты клика. Попробуй нажать ещё раз.";
+              console.warn("Неизвестный формат события клика 2ГИС:", e);
+              return;
+            }
+            setMapPoint(lat, lon);
+          };
+          deliveryMap.on("click", handleMapClick);
+          // Клик по самому полигону тоже обрабатываем явно.
+          deliveryZone.on("click", handleMapClick);
           toggleMap.disabled = false;
           mapPicked.textContent = "Нажми на карту внутри зелёной области, чтобы выбрать адрес.";
         }).catch(err => {

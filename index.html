@@ -350,7 +350,7 @@
             if (street || house) return { street, house };
             // Fallback: split the readable address when components aren't supplied.
             const address = item.address_name || item.full_name || "";
-            const match = address.match(/^(.+?)[, ]+([0-9]+[\\p{L}А-Яа-яЁё0-9\\-/]*)$/u);
+            const match = address.match(/^(.+?)[, ]+([0-9]+[A-Za-zА-Яа-яЁё0-9/-]*)$/u);
             if (match) return { street: match[1].trim(), house: match[2].trim() };
           }
         } catch (err) {

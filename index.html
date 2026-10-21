@@ -6,8 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Кук — домашняя еда в Сочи</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://maps.api.2gis.ru/2.0/loader.js?pkg=full&key=bfbd528e-609a-4535-925b-649a20a838b3"></script>
   <style>
 
     :root {
@@ -153,7 +152,7 @@
           autocomplete="off" placeholder="Например, 24 (если есть)">
         <button class="map-button" type="button" id="toggle-map">📍 Указать дом на карте</button>
         <div id="map-wrap">
-          <p class="map-help">Зелёная область — доступная зона доставки. Нажми на карту в месте своего дома: метка сохранится в заказе. Карта загружает данные OpenStreetMap и передаёт этому сервису технические данные подключения.</p>
+          <p class="map-help">Зелёная область — доступная зона доставки. Нажми на карту в месте своего дома: метка сохранится в заказе. Карта 2ГИС; при её загрузке технические данные подключения передаются сервису 2ГИС.</p>
           <div id="map" role="application" aria-label="Карта для выбора адреса доставки"></div>
           <p class="map-picked" id="map-picked">Метка не выбрана.</p>
           <button type="button" id="clear-map">Убрать метку</button>
@@ -337,7 +336,7 @@
       if (deliveryMarker) {
         deliveryMarker.setLatLng([lat, lon]);
       } else {
-        deliveryMarker = L.marker([lat, lon], { draggable: false, keyboard: true, title: "Адрес доставки" }).addTo(deliveryMap);
+        deliveryMarker = DG.marker([lat, lon], { title: "Адрес доставки" }).addTo(deliveryMap);
       }
       deliveryMarker.bindPopup("Адрес доставки").openPopup();
       mapPicked.textContent = "Метка установлена. Заполняем адрес…";
@@ -370,19 +369,29 @@
       mapWrap.style.display = opening ? "block" : "none";
       toggleMap.textContent = opening ? "Скрыть карту" : "📍 Указать дом на карте";
       if (opening && !deliveryMap) {
-        deliveryMap = L.map("map").setView([43.590, 39.744], 13);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          maxZoom: 19,
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
-        }).addTo(deliveryMap);
-        deliveryZone = L.polygon(deliveryCoords, {
-          color: "#315b45",
-          weight: 3,
-          fillColor: "#91a98e",
-          fillOpacity: 0.3
-        }).addTo(deliveryMap).bindPopup("Зелёная область — доступная зона доставки.");
-        deliveryMap.fitBounds(deliveryZone.getBounds(), { padding: [12, 12] });
-        deliveryMap.on("click", e => setMapPoint(e.latlng.lat, e.latlng.lng));
+        toggleMap.disabled = true;
+        mapPicked.textContent = "Загружаем карту 2ГИС…";
+        DG.then(() => {
+          deliveryMap = DG.map("map", {
+            center: [43.590, 39.744],
+            zoom: 13,
+            key: "bfbd528e-609a-4535-925b-649a20a838b3"
+          });
+          deliveryZone = DG.polygon(deliveryCoords, {
+            color: "#315b45",
+            weight: 3,
+            fillColor: "#91a98e",
+            fillOpacity: 0.3
+          }).addTo(deliveryMap).bindPopup("Зелёная область — доступная зона доставки.");
+          deliveryMap.fitBounds(deliveryZone.getBounds(), { padding: [12, 12] });
+          deliveryMap.on("click", e => setMapPoint(e.latlng.lat, e.latlng.lng));
+          toggleMap.disabled = false;
+          mapPicked.textContent = "Нажми на карту внутри зелёной области, чтобы выбрать адрес.";
+        }).catch(err => {
+          console.error("Не удалось загрузить карту 2ГИС:", err);
+          toggleMap.disabled = false;
+          mapPicked.textContent = "Не удалось загрузить карту 2ГИС. Проверь ключ API и попробуй ещё раз.";
+        });
       }
       if (opening) setTimeout(() => deliveryMap.invalidateSize(), 100);
     });

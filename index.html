@@ -140,7 +140,7 @@
           placeholder="Улица, дом, квартира"></textarea>
         <button class="map-button" type="button" id="toggle-map">📍 Указать дом на карте</button>
         <div id="map-wrap">
-          <p class="map-help">Нажми на карту в месте своего дома. Метка сохранится в заказе. Карта загружает данные OpenStreetMap и передаёт этому сервису технические данные подключения.</p>
+          <p class="map-help">Серая область — предварительный черновик зоны доставки по присланному ориентиру. Граница примерная и пока не используется для автоматического отказа или подтверждения заказа. Нажми на карту в месте своего дома: метка сохранится в заказе. Карта загружает данные OpenStreetMap и передаёт этому сервису технические данные подключения.</p>
           <div id="map" role="application" aria-label="Карта для выбора адреса доставки"></div>
           <p class="map-picked" id="map-picked">Метка не выбрана.</p>
           <button type="button" id="clear-map">Убрать метку</button>
@@ -294,11 +294,41 @@
       mapWrap.style.display = opening ? "block" : "none";
       toggleMap.textContent = opening ? "Скрыть карту" : "📍 Указать дом на карте";
       if (opening && !deliveryMap) {
-        deliveryMap = L.map("map").setView([43.5855, 39.7231], 12);
+        deliveryMap = L.map("map").setView([43.5855, 39.7470], 12);
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
           maxZoom: 19,
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
         }).addTo(deliveryMap);
+        // Предварительный контур, вручную приближённый по скриншоту клиента.
+        // Координаты необходимо сверить на реальной карте перед использованием
+        // для проверки адресов; пока полигон служит только визуальным ориентиром.
+        L.polygon([
+          [43.6115, 39.7310],
+          [43.6085, 39.7390],
+          [43.6065, 39.7500],
+          [43.6035, 39.7610],
+          [43.5990, 39.7700],
+          [43.5930, 39.7660],
+          [43.5890, 39.7720],
+          [43.5830, 39.7770],
+          [43.5770, 39.7830],
+          [43.5680, 39.7790],
+          [43.5630, 39.7660],
+          [43.5630, 39.7500],
+          [43.5680, 39.7400],
+          [43.5740, 39.7300],
+          [43.5810, 39.7200],
+          [43.5890, 39.7130],
+          [43.5960, 39.7130],
+          [43.6000, 39.7190],
+          [43.6040, 39.7220],
+          [43.6080, 39.7250]
+        ], {
+          color: "#536b58",
+          weight: 3,
+          fillColor: "#9eaf9e",
+          fillOpacity: 0.25
+        }).addTo(deliveryMap).bindPopup("Черновая зона доставки «Кук» — границу нужно проверить");
         deliveryMap.on("click", e => setMapPoint(e.latlng.lat, e.latlng.lng));
       }
       if (opening) setTimeout(() => deliveryMap.invalidateSize(), 100);
